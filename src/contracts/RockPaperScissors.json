@@ -10,12 +10,6 @@
       "inputs": [
         {
           "indexed": false,
-          "internalType": "uint256",
-          "name": "gameId",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
           "internalType": "address",
           "name": "winner",
           "type": "address"
@@ -33,12 +27,6 @@
     {
       "anonymous": false,
       "inputs": [
-        {
-          "indexed": false,
-          "internalType": "uint256",
-          "name": "gameId",
-          "type": "uint256"
-        },
         {
           "indexed": false,
           "internalType": "address",
@@ -60,12 +48,6 @@
       "inputs": [
         {
           "indexed": false,
-          "internalType": "uint256",
-          "name": "gameId",
-          "type": "uint256"
-        },
-        {
-          "indexed": false,
           "internalType": "address",
           "name": "player",
           "type": "address"
@@ -75,16 +57,16 @@
       "type": "event"
     },
     {
-      "inputs": [
+      "inputs": [],
+      "name": "betAmount",
+      "outputs": [
         {
           "internalType": "uint256",
-          "name": "_gameId",
+          "name": "",
           "type": "uint256"
         }
       ],
-      "name": "completeGame",
-      "outputs": [],
-      "stateMutability": "nonpayable",
+      "stateMutability": "view",
       "type": "function"
     },
     {
@@ -101,13 +83,7 @@
       "type": "function"
     },
     {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_gameId",
-          "type": "uint256"
-        }
-      ],
+      "inputs": [],
       "name": "getGameInfo",
       "outputs": [
         {
@@ -122,12 +98,12 @@
         },
         {
           "internalType": "uint256",
-          "name": "betAmount",
+          "name": "_betAmount",
           "type": "uint256"
         },
         {
           "internalType": "enum RockPaperScissors.GameState",
-          "name": "state",
+          "name": "_state",
           "type": "uint8"
         }
       ],
@@ -136,66 +112,12 @@
     },
     {
       "inputs": [],
-      "name": "gameCount",
+      "name": "isCompleted",
       "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "name": "games",
-      "outputs": [
-        {
-          "internalType": "address",
-          "name": "owner",
-          "type": "address"
-        },
-        {
-          "internalType": "address",
-          "name": "player",
-          "type": "address"
-        },
-        {
-          "internalType": "uint256",
-          "name": "betAmount",
-          "type": "uint256"
-        },
-        {
-          "internalType": "enum RockPaperScissors.Choice",
-          "name": "ownerChoice",
-          "type": "uint8"
-        },
-        {
-          "internalType": "enum RockPaperScissors.Choice",
-          "name": "playerChoice",
-          "type": "uint8"
-        },
         {
           "internalType": "bool",
-          "name": "isCompleted",
+          "name": "",
           "type": "bool"
-        },
-        {
-          "internalType": "enum RockPaperScissors.Result",
-          "name": "result",
-          "type": "uint8"
-        },
-        {
-          "internalType": "enum RockPaperScissors.GameState",
-          "name": "state",
-          "type": "uint8"
         }
       ],
       "stateMutability": "view",
@@ -203,11 +125,6 @@
     },
     {
       "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "_gameId",
-          "type": "uint256"
-        },
         {
           "internalType": "enum RockPaperScissors.Choice",
           "name": "_playerChoice",
@@ -231,6 +148,84 @@
       ],
       "stateMutability": "view",
       "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ownerChoice",
+      "outputs": [
+        {
+          "internalType": "enum RockPaperScissors.Choice",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "player",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "playerChoice",
+      "outputs": [
+        {
+          "internalType": "enum RockPaperScissors.Choice",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "result",
+      "outputs": [
+        {
+          "internalType": "enum RockPaperScissors.Result",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "state",
+      "outputs": [
+        {
+          "internalType": "enum RockPaperScissors.GameState",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
     }
   ]
-} 
+}

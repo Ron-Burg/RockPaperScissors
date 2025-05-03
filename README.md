@@ -1,6 +1,6 @@
 # Rock Paper Scissors DApp
 
-A decentralized application (DApp) that allows users to play Rock Paper Scissors on the blockchain. This project consists of a React frontend and a Solidity smart contract.
+A decentralized application (DApp) that allows users to play Rock Paper Scissors on the blockchain. This project consists of a React frontend and a Solidity smart contract using a factory pattern.
 
 ## Prerequisites
 
@@ -22,13 +22,13 @@ A decentralized application (DApp) that allows users to play Rock Paper Scissors
    - Start a local Ethereum network
    - Create 20 test accounts with 10000 ETH each
    - Display the accounts and their private keys
-   - Run on http://localhost:8545
+   - Run on http://127.0.0.1:8545
 
-3. Deploy the contract (in a new terminal):
+3. Deploy the factory contract:
    ```bash
    bun run deploy
    ```
-   Save the contract address that gets displayed.
+   Save the factory contract address that gets displayed.
 
 4. Configure MetaMask:
    - Open MetaMask
@@ -36,7 +36,7 @@ A decentralized application (DApp) that allows users to play Rock Paper Scissors
    - Select "Add Network"
    - Enter:
      - Network Name: Hardhat
-     - RPC URL: http://localhost:8545
+     - RPC URL: http://127.0.0.1:8545
      - Chain ID: 1337
      - Currency Symbol: ETH
    - Click "Save"
@@ -48,34 +48,44 @@ A decentralized application (DApp) that allows users to play Rock Paper Scissors
    - Paste the private key
    - Click "Import"
 
-6. Start the web app (in a new terminal):
+6. Update the factory contract address in the app:
+   - Open `src/FactoryApp.js`
+   - Update the `factoryAddress` constant with the address from step 3
+
+7. Start the web app:
    ```bash
    bun run start
    ```
    The application will be available at `http://localhost:3000`
 
-## Development
+## Architecture
 
-The project uses:
-- Bun for package management and running scripts
-- Hardhat for smart contract development
-- React for the frontend
+The application uses a factory pattern:
+- `RockPaperScissorsFactory`: Creates individual game contracts
+- Each player can create their own game contract and become its owner
+- Players can join any existing game by providing the game ID
 
-### Available Commands
+This approach solves ownership permissions and scales better than a single-contract approach.
 
-- `bun run node` - Start the Hardhat network
-- `bun run deploy` - Deploy the contract
-- `bun run start` - Start the React development server
+## Features
+
+### Account Change Detection
+The application automatically detects when a user changes their MetaMask account or disconnects their wallet:
+- Updates the UI to reflect the current connected account
+- Reinitializes web3 connections when accounts change
+- Handles wallet disconnection gracefully
+
+For more details on how this works, see [Account Change Detection Documentation](docs/AccountChangeDetection.md).
 
 ## Troubleshooting
 
-1. **MetaMask Connection Issues**
-   - Ensure MetaMask is connected to the Hardhat network
-   - Check if you're using the correct chain ID (1337)
-   - Make sure the Hardhat node is running
+### MetaMask Connection Issues
+- Make sure you're connected to the Hardhat network (Chain ID: 1337)
+- Check the browser console for connection details
+- Ensure the Hardhat node is running at http://127.0.0.1:8545
 
 ### Contract Interaction Failures
-- Verify the contract address in your application
+- Verify the factory contract address in the FactoryApp.js file
 - Check if you have enough test ETH in your account
 - Ensure the Hardhat node is running
 
@@ -83,10 +93,16 @@ The project uses:
 
 ```
 rock-paper-scissors/
-├── contracts/           # Smart contract source files
-├── public/             # Static files
-├── src/               # React application source
-└── package.json       # Project dependencies and scripts
+├── contracts/              # Smart contract source files
+│   ├── RockPaperScissors.sol        # Game logic contract
+│   └── RockPaperScissorsFactory.sol # Factory contract
+├── scripts/                # Deployment scripts
+│   └── deployFactory.js    # Factory deployment script
+├── src/                    # React application source
+│   ├── App.js              # Main application component
+│   ├── FactoryApp.js       # Factory pattern implementation
+│   └── contracts/          # Contract ABIs
+└── package.json            # Project dependencies and scripts
 ```
 
 ## Smart Contract Interaction
