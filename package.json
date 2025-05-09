@@ -7,7 +7,8 @@
     "start": "bun run react-scripts start",
     "node": "bunx hardhat node",
     "deploy": "bunx hardhat run scripts/deployFactory.js --network localhost",
-    "test": "bun test"
+    "build": "react-scripts build",
+    "eject": "react-scripts eject"
   },
   "dependencies": {
     "ethers": "^6.13.7",
@@ -17,11 +18,7 @@
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.3.0",
-    "hardhat": "^2.23.0",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0"
+    "hardhat": "^2.23.0"
   },
   "browserslist": {
     "production": [

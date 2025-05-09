@@ -1,0 +1,5 @@
+Read the todo.md file in this directory,
+With those tasks work with this workflow for each uncompleted task, ask for confirmation after each step:
+    - Understand the task and write short description of it. Ask for confirmation.
+    - Describe what tech stack your are going to use, in general prefer the more established and adopted ones, even if not the newest. Ask for confirmation.
+    - Edit the file and break each task into sub-tasks. Ask for confirmation for these sub-tasks.

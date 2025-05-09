@@ -1,1 +1,0 @@
-1. Need to fix, winner is diterment wrong in the front end. The contract part functions ok.

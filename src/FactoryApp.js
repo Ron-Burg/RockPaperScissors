@@ -139,15 +139,64 @@ function FactoryApp() {
       
       setStatus('Creating new game contract...');
       const tx = await factoryContract.createGame();
-      await tx.wait();
-      setStatus('Game contract created successfully!');
+      const receipt = await tx.wait();
+      
+      // Get the new game address from the event
+      const event = receipt.logs.find(log => log.fragment?.name === 'GameContractCreated');
+      if (!event) {
+        throw new Error('GameContractCreated event not found');
+      }
+      const gameAddress = event.args[0];
+      
+      setStatus('Game contract created! Select the game to make your move.');
       
       // Reload games
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       await loadGames(factoryContract, signer);
+      
+      // Automatically select the new game
+      await selectGame(gameAddress);
     } catch (error) {
       setStatus('Error creating game: ' + error.message);
+    }
+  };
+
+  const makeFirstMove = async (choice) => {
+    try {
+      // Verify we're still using the correct account
+      if (account !== currentAccountRef.current) {
+        setStatus('Account changed. Please try again.');
+        await initWeb3();
+        return;
+      }
+      
+      if (!betAmount || betAmount === '') {
+        setStatus('Please enter a bet amount');
+        return;
+      }
+      
+      if (!selectedGame) {
+        setStatus('Please select a game first');
+        return;
+      }
+      
+      setStatus('Making your move...');
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const game = new ethers.Contract(selectedGame, RockPaperScissors.abi, signer);
+      
+      const tx = await game.createGame(choice, {
+        value: ethers.parseEther(betAmount)
+      });
+      await tx.wait();
+      
+      setStatus('Move made successfully!');
+      
+      // Refresh game info
+      await selectGame(selectedGame);
+    } catch (error) {
+      setStatus('Error making move: ' + error.message);
     }
   };
 
@@ -194,6 +243,18 @@ function FactoryApp() {
         }
       } catch (error) {
         console.error("Error getting game player:", error);
+      }
+
+      // Get player choices
+      try {
+        const ownerChoice = await game.ownerChoice();
+        const playerChoice = await game.playerChoice();
+        console.log("Owner choice:", ownerChoice, "Player choice:", playerChoice);
+        // Update the contract instance with the choices
+        game.ownerChoice = ownerChoice;
+        game.playerChoice = playerChoice;
+      } catch (error) {
+        console.error("Error getting player choices:", error);
       }
       
       // Get game info to determine state
@@ -403,8 +464,8 @@ function FactoryApp() {
 
   // Helper function to display the winner information
   const renderGameResult = () => {
-    if (!gameResult && gameResult !== 0) {
-      console.log("No game result available:", gameResult);
+    if (gameResult === undefined || gameResult === null) {
+      console.log("No game result available");
       return "Game result not available";
     }
     
@@ -415,23 +476,43 @@ function FactoryApp() {
     let winnerAddress;
     let winnerLabel;
     
+    // Helper function to convert choice number to text
+    const getChoiceText = (choice) => {
+      switch (Number(choice)) {
+        case 1: return "Rock";
+        case 2: return "Paper";
+        case 3: return "Scissors";
+        default: return "Unknown";
+      }
+    };
+    
     // Use strict numeric comparison since we convert BigNumber to Number
-    if (gameResult === 1) { 
-      resultText = "Owner (Player 1) won";
-      winnerAddress = gameOwner;
-      winnerLabel = "Player 1";
-    } else if (gameResult === 2) {
-      resultText = "Player (Player 2) won";
-      winnerAddress = gamePlayer;
-      winnerLabel = "Player 2";
-    } else if (gameResult === 3) { // Tie
-      resultText = "Tie - Both players get their bets back";
-      winnerAddress = null;
-      winnerLabel = "None";
-    } else {
-      resultText = `Unknown result (${gameResult})`;
-      winnerAddress = null;
-      winnerLabel = "Unknown";
+    switch (Number(gameResult)) {
+      case 0: // None
+        resultText = "Game not completed";
+        winnerAddress = null;
+        winnerLabel = "None";
+        break;
+      case 1: // OwnerWon
+        resultText = "Owner (Player 1) won";
+        winnerAddress = gameOwner;
+        winnerLabel = "Player 1";
+        break;
+      case 2: // PlayerWon
+        resultText = "Player (Player 2) won";
+        winnerAddress = gamePlayer;
+        winnerLabel = "Player 2";
+        break;
+      case 3: // Tie
+        resultText = "Tie - Both players get their bets back";
+        winnerAddress = null;
+        winnerLabel = "None";
+        break;
+      default:
+        resultText = `Unknown result (${gameResult})`;
+        winnerAddress = null;
+        winnerLabel = "Unknown";
+        console.error("Unexpected game result value:", gameResult);
     }
     
     const isCurrentUserWinner = winnerAddress && winnerAddress.toLowerCase() === account.toLowerCase();
@@ -445,6 +526,13 @@ function FactoryApp() {
         border: '1px solid ' + (isCurrentUserWinner ? '#b3e6b3' : gameResult === 3 ? '#dcdcdc' : '#ffb3b3')  
       }}>
         <h4>Game Result: {resultText}</h4>
+        
+        {/* Show player moves */}
+        <div style={{ marginBottom: '10px' }}>
+          <p><strong>Player 1 (Owner):</strong> {getChoiceText(gameContract?.ownerChoice)}</p>
+          <p><strong>Player 2:</strong> {getChoiceText(gameContract?.playerChoice)}</p>
+        </div>
+        
         {winnerAddress && (
           <div>
             <p><strong>Winner: {winnerLabel}</strong> ({winnerAddress.substring(0, 6)}...{winnerAddress.substring(38)}) {isCurrentUserWinner ? "👑 YOU WON! 👑" : ""}</p>
@@ -466,7 +554,18 @@ function FactoryApp() {
 
       <div style={{ marginBottom: '20px' }}>
         <h2>Game Contracts</h2>
-        <button onClick={createNewGame}>Create New Game Contract</button>
+        <button 
+          onClick={createNewGame}
+          style={{ 
+            marginBottom: '15px',
+            padding: '8px 15px',
+            backgroundColor: '#f0f0f0',
+            border: '1px solid #d9d9d9',
+            borderRadius: '4px'
+          }}
+        >
+          Create New Game Contract
+        </button>
         
         <h3>Available Game Contracts:</h3>
         {games.length === 0 ? (
@@ -519,7 +618,7 @@ function FactoryApp() {
               borderRadius: '5px',
               border: '1px solid #91d5ff'
             }}>
-              <h3>Create Game</h3>
+              <h3>Make Your Move</h3>
               <input
                 type="text"
                 placeholder="Bet Amount (ETH)"
@@ -529,7 +628,7 @@ function FactoryApp() {
               />
               <div style={{ marginTop: '10px' }}>
                 <button 
-                  onClick={() => createGame(1)}
+                  onClick={() => makeFirstMove(1)}
                   style={{ 
                     marginRight: '10px', 
                     padding: '8px 15px',
@@ -541,7 +640,7 @@ function FactoryApp() {
                   Rock
                 </button>
                 <button 
-                  onClick={() => createGame(2)}
+                  onClick={() => makeFirstMove(2)}
                   style={{ 
                     marginRight: '10px', 
                     padding: '8px 15px',
@@ -553,7 +652,7 @@ function FactoryApp() {
                   Paper
                 </button>
                 <button 
-                  onClick={() => createGame(3)}
+                  onClick={() => makeFirstMove(3)}
                   style={{ 
                     padding: '8px 15px',
                     backgroundColor: '#f0f0f0',
