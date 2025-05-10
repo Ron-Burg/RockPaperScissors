@@ -140,31 +140,34 @@ function FactoryApp() {
       for (const address of gameAddresses) {
         const game = new ethers.Contract(address, RockPaperScissors.abi, signer);
         const isCompleted = await game.isCompleted();
+        const owner = await game.owner();
+        const player = await game.player();
+        const isOwner = owner.toLowerCase() === account.toLowerCase();
+        const isPlayer = player.toLowerCase() === account.toLowerCase();
         
         if (isCompleted) {
-          completed.push(address);
+          // Only add to completed if user was a participant
+          if (isOwner || isPlayer) {
+            completed.push(address);
+          }
         } else {
-          // Check if user can interact with this game
-          const owner = await game.owner();
-          const player = await game.player();
+          // Get game info to determine state
           const gameInfo = await game.getGameInfo();
           
           // Game is available if:
-          // 1. User is the owner and hasn't made their move yet
-          // 2. Game is waiting for a player to join (canJoin is true)
-          const isOwner = owner.toLowerCase() === account.toLowerCase();
-          const canInteract = (isOwner && !gameInfo.exists) || gameInfo.canJoin;
-          
-          if (canInteract) {
+          // 1. User is the owner and hasn't made their move yet (!gameInfo.exists)
+          // 2. User is not the owner, first move is done (gameInfo.exists), and can join (gameInfo.canJoin)
+          // 3. User is the owner and has made their move (gameInfo.exists)
+          if ((isOwner && !gameInfo.exists) || 
+              (!isOwner && gameInfo.exists && gameInfo.canJoin) ||
+              (isOwner && gameInfo.exists)) {
             available.push({
               address,
               isOwner,
               canJoin: gameInfo.canJoin,
-              betAmount: gameInfo._betAmount
+              betAmount: gameInfo._betAmount,
+              hasPlayed: isOwner && gameInfo.exists
             });
-          } else {
-            // If user can't interact and game isn't completed, add to completed
-            completed.push(address);
           }
         }
       }
@@ -543,9 +546,9 @@ function FactoryApp() {
     
     const getChoiceText = (choice) => {
       switch (Number(choice)) {
-        case 1: return "Rock";
-        case 2: return "Paper";
-        case 3: return "Scissors";
+        case 1: return "✊ Rock";
+        case 2: return "✋ Paper";
+        case 3: return "✌️ Scissors";
         default: return "Unknown";
       }
     };
@@ -679,19 +682,30 @@ function FactoryApp() {
                         <p className="font-monospace small mb-1">{game.address}</p>
                         <div className="d-flex align-items-center gap-2">
                           <span className={`badge ${game.isOwner ? 'bg-primary' : 'bg-purple'}`}>
-                            {game.isOwner ? 'Your Game' : 'Joinable Game'}
+                            {game.isOwner 
+                              ? (game.hasPlayed ? 'Waiting for Player' : 'Your Game')
+                              : 'Joinable Game'}
                           </span>
                           <span className="text-muted small">
                             Bet: {ethers.formatEther(game.betAmount)} ETH
                           </span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => selectGame(game.address)}
-                        className={`btn ${game.isOwner ? 'btn-primary' : 'btn-purple'}`}
-                      >
-                        {game.isOwner && !game.canJoin ? 'Make Move' : !game.isOwner && game.canJoin ? 'Join Game' : 'View'}
-                      </button>
+                      {game.isOwner && game.hasPlayed ? (
+                        <button
+                          onClick={() => selectGame(game.address)}
+                          className="btn btn-outline-secondary"
+                        >
+                          View
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => selectGame(game.address)}
+                          className={`btn ${game.isOwner ? 'btn-primary' : 'btn-purple'}`}
+                        >
+                          {game.isOwner ? 'Make Move' : 'Join Game'}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -799,19 +813,19 @@ function FactoryApp() {
                             onClick={() => makeFirstMove(1)}
                             className="btn btn-primary flex-grow-1"
                           >
-                            Rock
+                            ✊ Rock
                           </button>
                           <button
                             onClick={() => makeFirstMove(2)}
                             className="btn btn-primary flex-grow-1"
                           >
-                            Paper
+                            ✋ Paper
                           </button>
                           <button
                             onClick={() => makeFirstMove(3)}
                             className="btn btn-primary flex-grow-1"
                           >
-                            Scissors
+                            ✌️ Scissors
                           </button>
                         </div>
                       </div>
@@ -819,7 +833,7 @@ function FactoryApp() {
                   </div>
                 )}
 
-                {gameInfo && gameInfo.exists && gameInfo.canJoin && (
+                {gameInfo && gameInfo.exists && gameInfo.canJoin && gameOwner.toLowerCase() !== account.toLowerCase() && (
                   <div className="card bg-light">
                     <div className="card-body">
                       <h3 className="h4 mb-3">Join Game</h3>
@@ -831,19 +845,19 @@ function FactoryApp() {
                           onClick={() => joinGame(1)}
                           className="btn btn-purple flex-grow-1"
                         >
-                          Rock
+                          ✊ Rock
                         </button>
                         <button
                           onClick={() => joinGame(2)}
                           className="btn btn-purple flex-grow-1"
                         >
-                          Paper
+                          ✋ Paper
                         </button>
                         <button
                           onClick={() => joinGame(3)}
                           className="btn btn-purple flex-grow-1"
                         >
-                          Scissors
+                          ✌️ Scissors
                         </button>
                       </div>
                     </div>
