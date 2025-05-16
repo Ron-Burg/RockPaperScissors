@@ -43,7 +43,7 @@
       "name": "games",
       "outputs": [
         {
-          "internalType": "address",
+          "internalType": "contract RockPaperScissors",
           "name": "",
           "type": "address"
         }
@@ -69,7 +69,7 @@
       "name": "getGames",
       "outputs": [
         {
-          "internalType": "address[]",
+          "internalType": "contract RockPaperScissors[]",
           "name": "",
           "type": "address[]"
         }

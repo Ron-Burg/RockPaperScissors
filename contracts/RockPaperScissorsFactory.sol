@@ -10,7 +10,7 @@ import "./RockPaperScissors.sol";
  */
 contract RockPaperScissorsFactory {
     // Array of all deployed game contracts
-    address[] public games;
+    RockPaperScissors[] public games;
     
     // Mapping to verify if a contract was created by this factory
     mapping(address => bool) public isGameCreatedByFactory;
@@ -22,28 +22,22 @@ contract RockPaperScissorsFactory {
      * @dev Creates a new RockPaperScissors game contract
      * @return address The address of the newly created game contract
      */
-    function createGame() external returns (address) {
+    function createGame() public returns (address) {
         // Deploy a new RockPaperScissors contract
-        RockPaperScissors newGame = new RockPaperScissors();
-        address gameAddress = address(newGame);
+        RockPaperScissors game = new RockPaperScissors(msg.sender);
+        games.push(game);
+        isGameCreatedByFactory[address(game)] = true;
         
-        // Store the game address
-        games.push(gameAddress);
-        isGameCreatedByFactory[gameAddress] = true;
+        emit GameContractCreated(address(game), msg.sender);
         
-        // Transfer ownership to the caller so they can create a game
-        newGame.transferOwnership(msg.sender);
-        
-        emit GameContractCreated(gameAddress, msg.sender);
-        
-        return gameAddress;
+        return address(game);
     }
     
     /**
      * @dev Gets all deployed game contracts
-     * @return address[] Array of game contract addresses
+     * @return RockPaperScissors[] Array of game contracts
      */
-    function getGames() external view returns (address[] memory) {
+    function getGames() public view returns (RockPaperScissors[] memory) {
         return games;
     }
     
