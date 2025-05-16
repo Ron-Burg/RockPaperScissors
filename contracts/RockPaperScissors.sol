@@ -6,7 +6,7 @@ contract RockPaperScissors {
     
     enum Choice { None, Rock, Paper, Scissors }
     enum Result { None, OwnerWon, PlayerWon, Tie }
-    enum GameState { Created, InProgress, Completed }
+    enum GameState { Created, Committed, Completed }
     
     // Single game instance
     address public player;
@@ -17,10 +17,16 @@ contract RockPaperScissors {
     Result public result;
     GameState public state;
     
+    // Commit-reveal variables for owner only
+    bytes32 public ownerCommit;
+    bool public ownerRevealed;
+    
     // Events
     event GameCreated(address owner, uint256 betAmount);
-    event PlayerJoined(address player);
+    event PlayerJoined(address player, Choice choice);
     event GameCompleted(address winner, Result result);
+    event ChoiceCommitted(address player);
+    event ChoiceRevealed(address player, Choice choice);
     
     constructor() {
         owner = msg.sender;
@@ -51,13 +57,12 @@ contract RockPaperScissors {
         }
     }
     
-    function createGame(Choice _ownerChoice) external payable onlyOwner {
-        require(state == GameState.Created && ownerChoice == Choice.None, "Game already initialized");
+    function createGame(bytes32 _ownerCommit) external payable onlyOwner {
+        require(state == GameState.Created && ownerCommit == bytes32(0), "Game already initialized");
         require(msg.value > 0, "Bet amount must be greater than 0");
-        require(_ownerChoice != Choice.None, "Invalid choice");
         
         betAmount = msg.value;
-        ownerChoice = _ownerChoice;
+        ownerCommit = _ownerCommit;
         
         emit GameCreated(owner, msg.value);
     }
@@ -68,14 +73,14 @@ contract RockPaperScissors {
         uint256 _betAmount,
         GameState _state
     ) {
-        exists = ownerChoice != Choice.None;
+        exists = betAmount > 0;
         canJoin = exists && player == address(0) && !isCompleted;
         _betAmount = betAmount;
         _state = state;
     }
     
     function joinGame(Choice _playerChoice) external payable {
-        require(ownerChoice != Choice.None, "Game not initialized");
+        require(ownerCommit != bytes32(0), "Game not initialized");
         require(player == address(0), "Game already has a player");
         require(msg.sender != owner, "Owner cannot join their own game");
         require(msg.value == betAmount, "Must match the owner's bet amount");
@@ -84,16 +89,32 @@ contract RockPaperScissors {
         
         player = msg.sender;
         playerChoice = _playerChoice;
-        state = GameState.InProgress;
+        state = GameState.Committed;
         
-        emit PlayerJoined(msg.sender);
+        emit PlayerJoined(msg.sender, _playerChoice);
+    }
+    
+    function revealChoice(Choice _choice, bytes32 _salt) external {
+        require(state == GameState.Committed, "Game not in committed state");
+        require(!isCompleted, "Game already completed");
+        require(msg.sender == owner, "Only owner can reveal");
+        require(!ownerRevealed, "Owner already revealed");
         
-        // Since both choices are now made, complete the game
+        bytes32 commit = keccak256(abi.encodePacked(_choice, _salt));
+        require(commit == ownerCommit, "Invalid owner commit");
+        
+        ownerChoice = _choice;
+        ownerRevealed = true;
+        
+        emit ChoiceRevealed(msg.sender, _choice);
+        
+        // Since both choices are now known, complete the game
         completeGame();
     }
     
     function completeGame() internal {
         require(!isCompleted, "Game already completed");
+        require(ownerRevealed, "Owner must reveal first");
         
         result = determineWinner(ownerChoice, playerChoice);
         isCompleted = true;

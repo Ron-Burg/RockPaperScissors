@@ -11,6 +11,38 @@
         {
           "indexed": false,
           "internalType": "address",
+          "name": "player",
+          "type": "address"
+        }
+      ],
+      "name": "ChoiceCommitted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "player",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "enum RockPaperScissors.Choice",
+          "name": "choice",
+          "type": "uint8"
+        }
+      ],
+      "name": "ChoiceRevealed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
           "name": "winner",
           "type": "address"
         },
@@ -51,6 +83,12 @@
           "internalType": "address",
           "name": "player",
           "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "enum RockPaperScissors.Choice",
+          "name": "choice",
+          "type": "uint8"
         }
       ],
       "name": "PlayerJoined",
@@ -72,9 +110,9 @@
     {
       "inputs": [
         {
-          "internalType": "enum RockPaperScissors.Choice",
-          "name": "_ownerChoice",
-          "type": "uint8"
+          "internalType": "bytes32",
+          "name": "_ownerCommit",
+          "type": "bytes32"
         }
       ],
       "name": "createGame",
@@ -164,6 +202,32 @@
     },
     {
       "inputs": [],
+      "name": "ownerCommit",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ownerRevealed",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "player",
       "outputs": [
         {
@@ -199,6 +263,24 @@
         }
       ],
       "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "enum RockPaperScissors.Choice",
+          "name": "_choice",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_salt",
+          "type": "bytes32"
+        }
+      ],
+      "name": "revealChoice",
+      "outputs": [],
+      "stateMutability": "nonpayable",
       "type": "function"
     },
     {

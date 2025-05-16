@@ -19,10 +19,41 @@ function FactoryApp() {
   const [gameOwner, setGameOwner] = useState(null);
   const [gamePlayer, setGamePlayer] = useState(null);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [ownerCommit, setOwnerCommit] = useState('');
+  const [playerCommit, setPlayerCommit] = useState('');
+  const [ownerSalt, setOwnerSalt] = useState(null);
+  const [playerSalt, setPlayerSalt] = useState(null);
+  const [ownerRevealed, setOwnerRevealed] = useState(false);
+  const [playerRevealed, setPlayerRevealed] = useState(false);
+  const [ownerChoice, setOwnerChoice] = useState(null);
+  const [playerChoice, setPlayerChoice] = useState(null);
 
   // Reference to track current account for async operations
   const currentAccountRef = React.useRef('');
   
+  // Load saved game data when component mounts
+  useEffect(() => {
+    const savedGameData = localStorage.getItem('gameData');
+    if (savedGameData) {
+      const data = JSON.parse(savedGameData);
+      setOwnerChoice(data.ownerChoice);
+      setOwnerSalt(data.ownerSalt);
+      setPlayerChoice(data.playerChoice);
+      setPlayerSalt(data.playerSalt);
+    }
+  }, []);
+
+  // Save game data whenever it changes
+  useEffect(() => {
+    const gameData = {
+      ownerChoice,
+      ownerSalt,
+      playerChoice,
+      playerSalt
+    };
+    localStorage.setItem('gameData', JSON.stringify(gameData));
+  }, [ownerChoice, ownerSalt, playerChoice, playerSalt]);
+
   useEffect(() => {
     initWeb3();
 
@@ -158,15 +189,19 @@ function FactoryApp() {
           // 1. User is the owner and hasn't made their move yet (!gameInfo.exists)
           // 2. User is not the owner, first move is done (gameInfo.exists), and can join (gameInfo.canJoin)
           // 3. User is the owner and has made their move (gameInfo.exists)
+          // 4. User is the player and has already joined (isPlayer)
           if ((isOwner && !gameInfo.exists) || 
               (!isOwner && gameInfo.exists && gameInfo.canJoin) ||
-              (isOwner && gameInfo.exists)) {
+              (isOwner && gameInfo.exists) ||
+              isPlayer) {
             available.push({
               address,
               isOwner,
+              isPlayer,
               canJoin: gameInfo.canJoin,
               betAmount: gameInfo._betAmount,
-              hasPlayed: isOwner && gameInfo.exists
+              hasPlayed: (isOwner && gameInfo.exists) || isPlayer,
+              exists: gameInfo.exists
             });
           }
         }
@@ -213,9 +248,20 @@ function FactoryApp() {
     }
   };
 
+  const generateSalt = () => {
+    return ethers.randomBytes(32);
+  };
+
+  const generateCommit = (choice, salt) => {
+    // Match the contract's keccak256(abi.encodePacked(_choice, _salt))
+    return ethers.keccak256(ethers.concat([
+      ethers.toBeArray(choice),
+      salt
+    ]));
+  };
+
   const makeFirstMove = async (choice) => {
     try {
-      // Verify we're still using the correct account
       if (account !== currentAccountRef.current) {
         setStatus('Account changed. Please try again.');
         await initWeb3();
@@ -237,12 +283,28 @@ function FactoryApp() {
       const signer = await provider.getSigner();
       const game = new ethers.Contract(selectedGame, RockPaperScissors.abi, signer);
       
-      const tx = await game.createGame(choice, {
+      // Generate salt and commit
+      const salt = generateSalt();
+      const commit = generateCommit(choice, salt);
+      
+      // Store choice and salt for reveal phase
+      setOwnerChoice(choice);
+      setOwnerSalt(salt);
+      
+      // Save game data with the game address
+      const gameData = {
+        ownerChoice: choice,
+        ownerSalt: salt,
+        gameAddress: selectedGame
+      };
+      localStorage.setItem('gameData', JSON.stringify(gameData));
+      
+      const tx = await game.createGame(commit, {
         value: ethers.parseEther(betAmount)
       });
       await tx.wait();
       
-      setStatus('Move made successfully!');
+      setStatus('Move committed successfully!');
       
       // Refresh game info
       await selectGame(selectedGame);
@@ -260,7 +322,6 @@ function FactoryApp() {
       const signer = await provider.getSigner();
       
       try {
-        // First check if the address has code
         const code = await provider.getCode(gameAddress);
         if (code.length <= 2) {
           setStatus(`Error: No contract code found at address ${gameAddress}`);
@@ -272,23 +333,37 @@ function FactoryApp() {
         return;
       }
       
-      // Create a contract instance
       const game = new ethers.Contract(gameAddress, RockPaperScissors.abi, signer);
       setGameContract(game);
       setSelectedGame(gameAddress);
       
-      // Get the game owner and set it
+      // First get the owner and player
+      let owner = null;
+      let player = null;
+      
       try {
-        const owner = await game.owner();
+        owner = await game.owner();
         setGameOwner(owner);
         console.log("Game owner:", owner);
+        
+        // If this is the game we have saved data for, load it
+        const savedGameData = localStorage.getItem('gameData');
+        if (savedGameData) {
+          const data = JSON.parse(savedGameData);
+          if (data.gameAddress === gameAddress) {
+            setOwnerChoice(data.ownerChoice);
+            setOwnerSalt(data.ownerSalt);
+            console.log("Loaded saved game data for this game");
+          }
+        }
       } catch (error) {
         console.error("Error getting game owner:", error);
+        setStatus(`Error getting game owner: ${error.message}`);
+        return;
       }
       
-      // Get the game player if available
       try {
-        const player = await game.player();
+        player = await game.player();
         if (player && player !== ethers.ZeroAddress) {
           setGamePlayer(player);
           console.log("Game player:", player);
@@ -303,101 +378,72 @@ function FactoryApp() {
       try {
         const ownerChoice = await game.ownerChoice();
         const playerChoice = await game.playerChoice();
+        const ownerRevealed = await game.ownerRevealed();
+        
         console.log("Owner choice:", ownerChoice, "Player choice:", playerChoice);
-        // Update the contract instance with the choices
+        console.log("Owner revealed:", ownerRevealed);
+        
         game.ownerChoice = ownerChoice;
         game.playerChoice = playerChoice;
+        setOwnerRevealed(ownerRevealed);
       } catch (error) {
         console.error("Error getting player choices:", error);
       }
       
-      // Get game info to determine state
       try {
-        // Log the ABI of the contract to debug
-        console.log("Using RockPaperScissors ABI:", RockPaperScissors.abi);
-        
-        // Check if game info method exists on the contract
-        if (!game.getGameInfo) {
-          console.error("getGameInfo method not found on contract");
-          setStatus(`Error: Game contract doesn't have getGameInfo method. ABI mismatch detected.`);
-          return;
-        }
-        
-        // Call the getGameInfo method without parameters (since we're using individual game contracts)
         const info = await game.getGameInfo();
         console.log("Game info raw:", info);
+        console.log("Game exists:", info[0]);
+        console.log("Can join:", info[1]);
+        console.log("Bet amount:", info[2]);
+        console.log("Game state:", info[3]);
         
-        // Always directly check if game is completed instead of relying on game info
-        const gameCompleted = await game.isCompleted();
         const gameState = await game.state();
+        const gameCompleted = await game.isCompleted();
         console.log("Game state:", gameState, "Is completed:", gameCompleted);
         
-        // Update the isCompleted state
         setIsCompleted(gameCompleted);
         
-        // Get result if the game is completed
         if (gameCompleted) {
           try {
             const resultValue = await game.result();
-            // Log the result value to understand its format
-            console.log("Raw game result value:", resultValue, 
-              "toString():", resultValue.toString(), 
-              "toNumber():", resultValue.toNumber ? resultValue.toNumber() : "N/A");
-            
-            // Store the numeric value, not the BigNumber object
             setGameResult(Number(resultValue.toString()));
           } catch (resultError) {
             console.error("Error getting game result:", resultError);
           }
         }
         
-        // Properly store the returned info, ensuring state is accurate
-        setGameInfo({
+        const gameInfoObj = {
           exists: info[0],
           canJoin: info[1],
           _betAmount: info[2],
-          _state: gameState // Use the directly queried state
-        });
+          _state: Number(gameState)
+        };
         
-        // Display proper game status based on state
+        console.log("Set game info:", gameInfoObj);
+        console.log("Should show make move:", 
+          Number(gameState) === 0 && 
+          owner.toLowerCase() === account.toLowerCase()
+        );
+        
+        setGameInfo(gameInfoObj);
+        
         if (info[0]) { // exists
-          // Force use isCompleted to determine actual completion state 
-          if (gameCompleted || gameState === 2) { // Completed (double check to ensure accuracy)
-            // Get the result object if game is completed
-            let resultObj = null;
-            
-            if (gameResult !== null) {
-              resultObj = gameResult;
-              console.log("Using cached game result:", resultObj);
-            } else {
-              try {
-                const rawResult = await game.result();
-                // Convert BigNumber to a regular number
-                resultObj = Number(rawResult.toString());
-                console.log("Fetched new game result, raw:", rawResult, "converted:", resultObj);
-                setGameResult(resultObj);
-              } catch (resultError) {
-                console.error("Error getting result:", resultError);
-              }
-            }
-            
-            console.log("Final result object used for UI:", resultObj);
-            
+          if (gameCompleted) {
+            let resultObj = gameResult;
             if (resultObj !== null) {
-              // Translate numeric result to text
               let resultText, winnerAddress;
               
-              // Match against numeric values
               if (resultObj === 0) {
                 resultText = "Not determined";
                 winnerAddress = null;
               } else if (resultObj === 1) {
                 resultText = "Owner (Player 1) won";
-                winnerAddress = gameOwner;
+                winnerAddress = owner;
               } else if (resultObj === 2) {
                 resultText = "Player (Player 2) won";
-                winnerAddress = gamePlayer;
-              } else if (resultObj === 3) { // Tie
+                winnerAddress = player;
+              } else if (resultObj === 3) {
                 resultText = "Tie";
                 winnerAddress = null;
               } else {
@@ -409,23 +455,27 @@ function FactoryApp() {
             } else {
               setStatus(`Game selected: ${gameAddress} - Game is completed`);
             }
+          } else if (Number(gameState) === 1) { // Committed
+            if (ownerRevealed) {
+              setStatus(`Game selected: ${gameAddress} - Waiting for game completion`);
+            } else {
+              setStatus(`Game selected: ${gameAddress} - Waiting for owner to reveal their choice`);
+            }
           } else if (info[1]) { // canJoin
             setStatus(`Game selected: ${gameAddress} - Waiting for player to join`);
           } else {
             setStatus(`Game selected: ${gameAddress} - Game in progress`);
           }
         } else {
-          setStatus(`Game selected: ${gameAddress} - No game created yet`);
+          if (owner.toLowerCase() === account.toLowerCase()) {
+            setStatus(`Game selected: ${gameAddress} - Ready to make your move`);
+          } else {
+            setStatus(`Game selected: ${gameAddress} - No game created yet`);
+          }
         }
       } catch (error) {
         console.error("Error getting game info:", error);
-        setStatus(`Error getting game info: ${error.message}. Check browser console for details.`);
-        
-        // Try to determine if this is an ABI mismatch
-        if (error.message.includes("call revert exception") || 
-            error.message.includes("function selector was not recognized")) {
-          console.error("This could be an ABI mismatch. Make sure you've redeployed contracts and updated ABIs.");
-        }
+        setStatus(`Error getting game info: ${error.message}`);
       }
     } catch (error) {
       console.error("Error selecting game:", error);
@@ -467,7 +517,6 @@ function FactoryApp() {
 
   const joinGame = async (choice) => {
     try {
-      // Verify we're still using the correct account
       if (account !== currentAccountRef.current) {
         setStatus('Account changed. Please try again.');
         await initWeb3();
@@ -489,12 +538,10 @@ function FactoryApp() {
         return;
       }
       
-      // Get a fresh contract instance with the current signer
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const currentGame = new ethers.Contract(selectedGame, RockPaperScissors.abi, signer);
       
-      // Use the bet amount from the game info
       try {
         const tx = await currentGame.joinGame(choice, {
           value: gameInfo._betAmount
@@ -516,6 +563,46 @@ function FactoryApp() {
     } catch (error) {
       console.error("Error in join game function:", error);
       setStatus(`Error: ${error.message}`);
+    }
+  };
+
+  const revealChoice = async () => {
+    try {
+      if (!selectedGame) {
+        setStatus('Please select a game first');
+        return;
+      }
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const game = new ethers.Contract(selectedGame, RockPaperScissors.abi, signer);
+
+      const isOwner = gameOwner.toLowerCase() === account.toLowerCase();
+      
+      if (isOwner) {
+        if (!ownerChoice || !ownerSalt) {
+          setStatus('Missing choice or salt for reveal. Please try making your move again.');
+          return;
+        }
+
+        const tx = await game.revealChoice(ownerChoice, ownerSalt);
+        await tx.wait();
+        setOwnerRevealed(true);
+      } else {
+        if (!playerChoice || !playerSalt) {
+          setStatus('Missing choice or salt for reveal. Please try making your move again.');
+          return;
+        }
+
+        const tx = await game.revealChoice(playerChoice, playerSalt);
+        await tx.wait();
+        setPlayerRevealed(true);
+      }
+
+      setStatus('Choice revealed successfully!');
+      await selectGame(selectedGame);
+    } catch (error) {
+      setStatus('Error revealing choice: ' + error.message);
     }
   };
 
@@ -681,10 +768,12 @@ function FactoryApp() {
                       <div>
                         <p className="font-monospace small mb-1">{game.address}</p>
                         <div className="d-flex align-items-center gap-2">
-                          <span className={`badge ${game.isOwner ? 'bg-primary' : 'bg-purple'}`}>
+                          <span className={`badge ${game.isOwner ? 'bg-primary' : game.isPlayer ? 'bg-purple' : 'bg-secondary'}`}>
                             {game.isOwner 
                               ? (game.hasPlayed ? 'Waiting for Player' : 'Your Game')
-                              : 'Joinable Game'}
+                              : game.isPlayer
+                                ? 'Your Joined Game'
+                                : 'Joinable Game'}
                           </span>
                           <span className="text-muted small">
                             Bet: {ethers.formatEther(game.betAmount)} ETH
@@ -697,6 +786,13 @@ function FactoryApp() {
                           className="btn btn-outline-secondary"
                         >
                           View
+                        </button>
+                      ) : game.isPlayer ? (
+                        <button
+                          onClick={() => selectGame(game.address)}
+                          className="btn btn-purple"
+                        >
+                          View Game
                         </button>
                       ) : (
                         <button
@@ -788,92 +884,94 @@ function FactoryApp() {
                   </div>
                 </div>
 
-                {gameInfo && (gameInfo._state === 2 || isCompleted) && (
+                {gameInfo && (
                   <div className="card bg-light">
                     <div className="card-body">
-                      {renderGameResult()}
-                    </div>
-                  </div>
-                )}
-
-                {gameInfo && !gameInfo.exists && (
-                  <div className="card bg-light">
-                    <div className="card-body">
-                      <h3 className="h4 mb-3">Make Your Move</h3>
-                      <div className="mb-3">
-                        <input
-                          type="text"
-                          value={betAmount}
-                          onChange={(e) => setBetAmount(e.target.value)}
-                          placeholder="Bet Amount (ETH)"
-                          className="form-control mb-3"
-                        />
-                        <div className="d-grid gap-2 d-md-flex">
+                      <h3 className="h4 mb-3">Game Status</h3>
+                      {gameInfo._state === 1 && !ownerRevealed && gameOwner.toLowerCase() === account.toLowerCase() && (
+                        <div>
+                          <h4 className="h5 mb-3">Reveal Your Choice</h4>
                           <button
-                            onClick={() => makeFirstMove(1)}
-                            className="btn btn-primary flex-grow-1"
+                            onClick={revealChoice}
+                            className="btn btn-primary mb-3"
                           >
-                            ✊ Rock
+                            Reveal Your Choice
                           </button>
-                          <button
-                            onClick={() => makeFirstMove(2)}
-                            className="btn btn-primary flex-grow-1"
-                          >
-                            ✋ Paper
-                          </button>
-                          <button
-                            onClick={() => makeFirstMove(3)}
-                            className="btn btn-primary flex-grow-1"
-                          >
-                            ✌️ Scissors
-                          </button>
+                          <p className="small text-muted">
+                            The other player has made their choice. Now you can reveal yours to complete the game.
+                          </p>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {gameInfo && gameInfo.exists && gameInfo.canJoin && gameOwner.toLowerCase() !== account.toLowerCase() && (
-                  <div className="card bg-light">
-                    <div className="card-body">
-                      <h3 className="h4 mb-3">Join Game</h3>
-                      <p className="small mb-3">
-                        Bet Amount: <span className="fw-medium">{gameInfo._betAmount ? ethers.formatEther(gameInfo._betAmount) : '0'} ETH</span>
-                      </p>
-                      <div className="d-grid gap-2 d-md-flex">
-                        <button
-                          onClick={() => joinGame(1)}
-                          className="btn btn-purple flex-grow-1"
-                        >
-                          ✊ Rock
-                        </button>
-                        <button
-                          onClick={() => joinGame(2)}
-                          className="btn btn-purple flex-grow-1"
-                        >
-                          ✋ Paper
-                        </button>
-                        <button
-                          onClick={() => joinGame(3)}
-                          className="btn btn-purple flex-grow-1"
-                        >
-                          ✌️ Scissors
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {gameInfo && gameInfo.exists && !gameInfo.canJoin && gameInfo._state === 1 && (
-                  <div className="card bg-light">
-                    <div className="card-body">
-                      <h3 className="h4 mb-3">Game Status: In Progress</h3>
-                      <p className="small text-muted mb-2">
-                        The game is currently in progress. Waiting for completion...
-                      </p>
-                      <p className="small text-muted mb-0">
-                        Once both players have made their moves, the game will complete automatically.
-                      </p>
+                      )}
+                      {Number(gameInfo._state) === 0 && gameOwner.toLowerCase() === account.toLowerCase() && (
+                        <div>
+                          <h4 className="h5 mb-3">Make Your Move</h4>
+                          <p className="text-muted mb-3">Set your bet amount and choose Rock, Paper, or Scissors to start the game.</p>
+                          <div className="mb-3">
+                            <label htmlFor="betAmount" className="form-label">Bet Amount (ETH)</label>
+                            <input
+                              id="betAmount"
+                              type="text"
+                              value={betAmount}
+                              onChange={(e) => setBetAmount(e.target.value)}
+                              placeholder="Enter bet amount in ETH"
+                              className="form-control mb-3"
+                            />
+                            <div className="d-grid gap-2 d-md-flex">
+                              <button
+                                onClick={() => makeFirstMove(1)}
+                                className="btn btn-primary flex-grow-1"
+                              >
+                                ✊ Rock
+                              </button>
+                              <button
+                                onClick={() => makeFirstMove(2)}
+                                className="btn btn-primary flex-grow-1"
+                              >
+                                ✋ Paper
+                              </button>
+                              <button
+                                onClick={() => makeFirstMove(3)}
+                                className="btn btn-primary flex-grow-1"
+                              >
+                                ✌️ Scissors
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {gameInfo.exists && gameInfo._state === 0 && gameInfo.canJoin && gameOwner.toLowerCase() !== account.toLowerCase() && (
+                        <div>
+                          <h4 className="h5 mb-3">Join Game</h4>
+                          <p className="small mb-3">
+                            Bet Amount: <span className="fw-medium">{gameInfo._betAmount ? ethers.formatEther(gameInfo._betAmount) : '0'} ETH</span>
+                          </p>
+                          <div className="d-grid gap-2 d-md-flex">
+                            <button
+                              onClick={() => joinGame(1)}
+                              className="btn btn-purple flex-grow-1"
+                            >
+                              ✊ Rock
+                            </button>
+                            <button
+                              onClick={() => joinGame(2)}
+                              className="btn btn-purple flex-grow-1"
+                            >
+                              ✋ Paper
+                            </button>
+                            <button
+                              onClick={() => joinGame(3)}
+                              className="btn btn-purple flex-grow-1"
+                            >
+                              ✌️ Scissors
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {isCompleted && (
+                        <div className="mt-4">
+                          {renderGameResult()}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
