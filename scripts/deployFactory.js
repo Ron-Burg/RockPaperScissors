@@ -19,7 +19,11 @@ async function main() {
   // Generate and save the ABIs for the frontend
   await saveContractArtifacts();
   
+  // Update the contract address in the frontend code
+  await updateContractAddress(factoryAddress);
+  
   console.log("Contract ABIs generated and saved to src/contracts/");
+  console.log("Contract address updated in frontend code");
   console.log("Deployment complete!");
 }
 
@@ -48,6 +52,22 @@ async function saveContractArtifacts() {
     path.join(contractsDir, "RockPaperScissors.json"),
     JSON.stringify(gameAbi, null, 2)
   );
+}
+
+async function updateContractAddress(factoryAddress) {
+  const factoryAppPath = path.join(__dirname, "../src/FactoryApp.js");
+  
+  // Read the current content of FactoryApp.js
+  let content = fs.readFileSync(factoryAppPath, 'utf8');
+  
+  // Replace the hardcoded factory address with the new one
+  const updatedContent = content.replace(
+    /const factoryAddress = ['"](0x[a-fA-F0-9]+)['"]/,
+    `const factoryAddress = '${factoryAddress}'`
+  );
+  
+  // Write the updated content back to the file
+  fs.writeFileSync(factoryAppPath, updatedContent);
 }
 
 main()

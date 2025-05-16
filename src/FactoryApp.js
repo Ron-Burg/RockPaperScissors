@@ -3,10 +3,334 @@ import { ethers } from 'ethers';
 import RockPaperScissorsFactory from './contracts/RockPaperScissorsFactory.json';
 import RockPaperScissors from './contracts/RockPaperScissors.json';
 
+const GameStatus = ({ 
+  gameState, 
+  gameAddress, 
+  isOwner, 
+  betAmount, 
+  ownerChoice, 
+  playerChoice, 
+  gameOwner, 
+  gamePlayer, 
+  gameResult,
+  account,
+  onRevealChoice,
+  onMakeMove,
+  onJoinGame,
+  revealChoiceValue,
+  setRevealChoiceValue,
+  revealSalt,
+  setRevealSalt,
+  betAmountInput,
+  setBetAmountInput,
+  ownerSalt,
+  setOwnerSalt
+}) => {
+  const getChoiceText = (choice) => {
+    const choiceNum = Number(choice);
+    if (isNaN(choiceNum)) return "Unknown";
+    
+    switch (choiceNum) {
+      case 1: return "✊ Rock";
+      case 2: return "✋ Paper";
+      case 3: return "✌️ Scissors";
+      default: return "Unknown";
+    }
+  };
+
+  const renderGameResult = () => {
+    if (gameResult === undefined || gameResult === null) {
+      return (
+        <div className="alert alert-info">
+          Game result not available
+        </div>
+      );
+    }
+    
+    let resultText;
+    let winnerAddress;
+    let winnerLabel;
+    let resultColor;
+    
+    switch (Number(gameResult)) {
+      case 0:
+        resultText = "Game not completed";
+        winnerAddress = null;
+        winnerLabel = "None";
+        resultColor = "info";
+        break;
+      case 1:
+        resultText = "Owner (Player 1) won";
+        winnerAddress = gameOwner;
+        winnerLabel = "Player 1";
+        resultColor = gameOwner.toLowerCase() === account.toLowerCase() ? "success" : "danger";
+        break;
+      case 2:
+        resultText = "Player (Player 2) won";
+        winnerAddress = gamePlayer;
+        winnerLabel = "Player 2";
+        resultColor = gamePlayer.toLowerCase() === account.toLowerCase() ? "success" : "danger";
+        break;
+      case 3:
+        resultText = "Tie - Both players get their bets back";
+        winnerAddress = null;
+        winnerLabel = "None";
+        resultColor = "warning";
+        break;
+      default:
+        resultText = `Unknown result (${gameResult})`;
+        winnerAddress = null;
+        winnerLabel = "Unknown";
+        resultColor = "danger";
+    }
+    
+    const isCurrentUserWinner = winnerAddress && winnerAddress.toLowerCase() === account.toLowerCase();
+    const isCurrentUserLoser = winnerAddress && winnerAddress.toLowerCase() !== account.toLowerCase() && 
+      (gameOwner.toLowerCase() === account.toLowerCase() || gamePlayer.toLowerCase() === account.toLowerCase());
+    
+    return (
+      <div>
+        <div className={`alert alert-${resultColor}`}>
+          <h3 className="h5 mb-0">Game Result: {resultText}</h3>
+          <p className="small mb-0 mt-2">Bet Amount: {ethers.formatEther(betAmount)} ETH</p>
+          {winnerAddress && (
+            <div className="mt-2">
+              {isCurrentUserWinner && (
+                <p className="small mb-0 d-inline-flex align-items-center text-success">
+                  <span className="fs-5 me-1">🏆</span>
+                  <span className="fw-bold">YOU WON! The prize has been sent to your wallet!</span>
+                </p>
+              )}
+              {isCurrentUserLoser && (
+                <p className="small mb-0 d-inline-flex align-items-center text-danger">
+                  <span className="fs-5 me-1">😢</span>
+                  <span className="fw-bold">You lost this game</span>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+        
+        <div className="mt-4">
+          <h4 className="h5 mb-3">Player Moves:</h4>
+          <div className="row g-3">
+            <div className="col-6">
+              <div className="card bg-light">
+                <div className="card-body">
+                  <p className="small text-muted mb-1">Player 1 (Owner)</p>
+                  <p className="h6 mb-1">{getChoiceText(ownerChoice)}</p>
+                  <p className="font-monospace small text-muted mb-0">
+                    {gameOwner.substring(0, 6)}...{gameOwner.substring(38)}
+                    {gameOwner.toLowerCase() === account.toLowerCase() && (
+                      <span className="badge bg-primary ms-2">You</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="col-6">
+              <div className="card bg-light">
+                <div className="card-body">
+                  <p className="small text-muted mb-1">Player 2</p>
+                  <p className="h6 mb-1">{getChoiceText(playerChoice)}</p>
+                  <p className="font-monospace small text-muted mb-0">
+                    {gamePlayer.substring(0, 6)}...{gamePlayer.substring(38)}
+                    {gamePlayer.toLowerCase() === account.toLowerCase() && (
+                      <span className="badge bg-primary ms-2">You</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div className="mb-3">
+        <h3 className="h4 mb-1">Game Status</h3>
+        <p className="font-monospace small text-muted mb-0">{gameAddress}</p>
+      </div>
+      {gameState === 0 && (
+        <div className={`alert ${isOwner ? 'alert-success' : 'alert-warning'}`}>
+          {isOwner 
+            ? "Ready to make your move"
+            : "Game is deployed, waiting for owner to make their move"}
+        </div>
+      )}
+      {gameState === 1 && (
+        <div className={`alert ${!isOwner ? 'alert-success' : 'alert-warning'}`}>
+          {isOwner
+            ? "Waiting for player to join"
+            : "Ready to join the game"}
+        </div>
+      )}
+      {gameState === 2 && (
+        <div className={`alert ${isOwner ? 'alert-success' : 'alert-warning'}`}>
+          {isOwner 
+            ? "Ready to reveal your choice"
+            : "Waiting for owner to reveal their choice"}
+        </div>
+      )}
+      {gameState === 3 && (
+        <div className="mt-4">
+          {renderGameResult()}
+        </div>
+      )}
+
+      {gameState === 2 && isOwner && (
+        <div>
+          <h4 className="h5 mb-3">Reveal Your Choice</h4>
+          <div className="mb-3">
+            <label htmlFor="revealChoice" className="form-label">Your Choice</label>
+            <select
+              id="revealChoice"
+              value={revealChoiceValue || ''}
+              onChange={(e) => setRevealChoiceValue(Number(e.target.value))}
+              className="form-select mb-3"
+            >
+              <option value="">Select your choice</option>
+              <option value="1">✊ Rock</option>
+              <option value="2">✋ Paper</option>
+              <option value="3">✌️ Scissors</option>
+            </select>
+            <label htmlFor="revealSalt" className="form-label">Your Salt</label>
+            <input
+              id="revealSalt"
+              type="text"
+              value={revealSalt}
+              onChange={(e) => setRevealSalt(e.target.value)}
+              placeholder="Enter the same salt you used before"
+              className="form-control mb-3"
+            />
+            <button
+              onClick={onRevealChoice}
+              className="btn btn-primary"
+            >
+              Reveal Your Choice
+            </button>
+          </div>
+        </div>
+      )}
+      {gameState === 0 && isOwner && (
+        <div>
+          <h4 className="h5 mb-3">Make Your Move</h4>
+          <p className="text-muted mb-3">Set your bet amount, choose Rock, Paper, or Scissors, and enter a salt to start the game.</p>
+          <div className="mb-3">
+            <label htmlFor="betAmount" className="form-label">Bet Amount (ETH)</label>
+            <input
+              id="betAmount"
+              type="text"
+              value={betAmountInput}
+              onChange={(e) => setBetAmountInput(e.target.value)}
+              placeholder="Enter bet amount in ETH"
+              className="form-control mb-3"
+            />
+            <label htmlFor="ownerSalt" className="form-label">Salt (remember this for reveal)</label>
+            <input
+              id="ownerSalt"
+              type="text"
+              value={ownerSalt}
+              onChange={(e) => setOwnerSalt(e.target.value)}
+              placeholder="Enter a salt (any text)"
+              className="form-control mb-3"
+            />
+            <div className="d-grid gap-2 d-md-flex">
+              <button
+                onClick={() => onMakeMove(1)}
+                className="btn btn-primary flex-grow-1"
+              >
+                ✊ Rock
+              </button>
+              <button
+                onClick={() => onMakeMove(2)}
+                className="btn btn-primary flex-grow-1"
+              >
+                ✋ Paper
+              </button>
+              <button
+                onClick={() => onMakeMove(3)}
+                className="btn btn-primary flex-grow-1"
+              >
+                ✌️ Scissors
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {gameState === 1 && !isOwner && (
+        <div>
+          <h4 className="h5 mb-3">Join Game</h4>
+          <p className="small mb-3">
+            Bet Amount: <span className="fw-medium">{ethers.formatEther(betAmount)} ETH</span>
+          </p>
+          <div className="d-grid gap-2 d-md-flex">
+            <button
+              onClick={() => onJoinGame(1)}
+              className="btn btn-primary flex-grow-1"
+            >
+              ✊ Rock
+            </button>
+            <button
+              onClick={() => onJoinGame(2)}
+              className="btn btn-primary flex-grow-1"
+            >
+              ✋ Paper
+            </button>
+            <button
+              onClick={() => onJoinGame(3)}
+              className="btn btn-primary flex-grow-1"
+            >
+              ✌️ Scissors
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const GameActionButton = ({ game, account, onSelect }) => {
+  const getButtonText = () => {
+    if (game.isOwner) {
+      switch (game.state) {
+        case 0: return 'Make Move';
+        case 2: return 'Reveal';
+        default: return 'View Game';
+      }
+    }
+    
+    if (game.isPlayer) {
+      return 'View Game';
+    }
+    
+    return game.state === 1 ? 'Join Game' : 'View Game';
+  };
+
+  const hasAction = () => {
+    const text = getButtonText();
+    return text !== 'View Game';
+  };
+
+  return (
+    <button
+      onClick={() => onSelect(game.address)}
+      className={hasAction() ? 'btn btn-primary' : 'btn btn-secondary'}
+    >
+      {getButtonText()}
+    </button>
+  );
+};
+
 function FactoryApp() {
   const [factoryContract, setFactoryContract] = useState(null);
   const [account, setAccount] = useState('');
   const [status, setStatus] = useState('');
+  const [showStatus, setShowStatus] = useState(false);
+  const [progress, setProgress] = useState(100);
   const [availableGames, setAvailableGames] = useState([]);
   const [completedGames, setCompletedGames] = useState([]);
   const [showCompletedGames, setShowCompletedGames] = useState(false);
@@ -22,50 +346,10 @@ function FactoryApp() {
   const [revealChoiceValue, setRevealChoiceValue] = useState(null);
   const [revealSalt, setRevealSalt] = useState('');
   const [playerChoice, setPlayerChoice] = useState(null);
+  const [isHovered, setIsHovered] = useState(false);
 
   // Reference to track current account for async operations
   const currentAccountRef = React.useRef('');
-  
-  // Load saved game data when component mounts
-  useEffect(() => {
-    const savedGameData = localStorage.getItem('gameData');
-    if (savedGameData) {
-      try {
-        const data = JSON.parse(savedGameData);
-        if (data.ownerChoice) {
-          setOwnerChoice(BigInt(data.ownerChoice));
-        }
-        if (data.ownerSalt) {
-          setOwnerSalt(data.ownerSalt);
-        }
-        if (data.playerChoice) {
-          setPlayerChoice(BigInt(data.playerChoice));
-        }
-        if (data.gameAddress) {
-          selectGame(data.gameAddress);
-        }
-      } catch (error) {
-        console.error('Error loading saved game data:', error);
-        // Clear invalid data
-        localStorage.removeItem('gameData');
-      }
-    }
-  }, []);
-
-  // Save game data whenever it changes
-  useEffect(() => {
-    try {
-      const gameData = {
-        ownerChoice: ownerChoice?.toString(),
-        ownerSalt: ownerSalt,
-        playerChoice: playerChoice?.toString(),
-        gameAddress: selectedGame
-      };
-      localStorage.setItem('gameData', JSON.stringify(gameData));
-    } catch (error) {
-      console.error('Error saving game data:', error);
-    }
-  }, [ownerChoice, ownerSalt, playerChoice, selectedGame]);
 
   useEffect(() => {
     initWeb3();
@@ -107,11 +391,24 @@ function FactoryApp() {
   useEffect(() => {
     currentAccountRef.current = account;
     
-    // When account changes, refresh selected game info if a game is selected
-    if (selectedGame) {
-      selectGame(selectedGame);
-    }
-  }, [account, selectedGame]);
+    // When account changes, reset game selection
+    resetGameSelection();
+  }, [account]);
+
+  const resetGameSelection = () => {
+    setSelectedGame(null);
+    setGameContract(null);
+    setGameState(null);
+    setBetAmount('');
+    setGameResult(null);
+    setGameOwner(null);
+    setGamePlayer(null);
+    setOwnerChoice(null);
+    setOwnerSalt('');
+    setRevealChoiceValue(null);
+    setRevealSalt('');
+    setPlayerChoice(null);
+  };
 
   const handleAccountsChanged = async (accounts) => {
     if (accounts.length === 0) {
@@ -121,10 +418,11 @@ function FactoryApp() {
       setFactoryContract(null);
       setAvailableGames([]);
       setCompletedGames([]);
+      resetGameSelection();
     } else {
       // User has switched accounts
       setAccount(accounts[0]);
-      setStatus('Account changed. Reconnecting...');
+      resetGameSelection();
       
       // Reinitialize web3 with the new account
       await initWeb3();
@@ -167,8 +465,6 @@ function FactoryApp() {
         
         const factory = new ethers.Contract(factoryAddress, RockPaperScissorsFactory.abi, signer);
         setFactoryContract(factory);
-        
-        setStatus('Connected to MetaMask');
       } catch (error) {
         console.error('Error connecting to MetaMask:', error);
         setStatus('Error connecting to MetaMask: ' + error.message);
@@ -230,6 +526,51 @@ function FactoryApp() {
     }
   };
 
+  // Effect to handle status display and auto-dismiss
+  useEffect(() => {
+    let progressInterval;
+    let dismissTimer;
+
+    if (status && !isHovered) {
+      setShowStatus(true);
+      setProgress(100);
+      
+      // Update progress every 50ms
+      progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev <= 0) {
+            clearInterval(progressInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 50);
+
+      // Dismiss after 5 seconds
+      dismissTimer = setTimeout(() => {
+        setShowStatus(false);
+        clearInterval(progressInterval);
+      }, 5000);
+    }
+
+    return () => {
+      if (progressInterval) clearInterval(progressInterval);
+      if (dismissTimer) clearTimeout(dismissTimer);
+    };
+  }, [status, isHovered]);
+
+  // Effect to clear status message after animation
+  useEffect(() => {
+    if (!showStatus) {
+      const timer = setTimeout(() => {
+        setStatus('');
+        setProgress(100);
+        setIsHovered(false); // Reset hover state when status is cleared
+      }, 300); // Match the transition duration
+      return () => clearTimeout(timer);
+    }
+  }, [showStatus]);
+
   const createNewGame = async () => {
     try {
       // Verify we're still using the correct account
@@ -239,7 +580,6 @@ function FactoryApp() {
         return;
       }
       
-      setStatus('Creating new game contract...');
       const tx = await factoryContract.createGame();
       const receipt = await tx.wait();
       
@@ -249,8 +589,6 @@ function FactoryApp() {
         throw new Error('GameContractCreated event not found');
       }
       const gameAddress = event.args[0];
-      
-      setStatus('Game contract created! Select the game to make your move.');
       
       // Reload games
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -302,7 +640,6 @@ function FactoryApp() {
         return;
       }
       
-      setStatus('Making your move...');
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const game = new ethers.Contract(selectedGame, RockPaperScissors.abi, signer);
@@ -314,8 +651,6 @@ function FactoryApp() {
         value: ethers.parseEther(betAmount)
       });
       await tx.wait();
-      
-      setStatus('Move committed successfully!');
       
       // Refresh game info
       await selectGame(selectedGame);
@@ -364,16 +699,6 @@ function FactoryApp() {
       setGameState(gameState);
       setBetAmount(betAmount.toString());
       
-      // If this is the game we have saved data for, load it
-      const savedGameData = localStorage.getItem('gameData');
-      if (savedGameData) {
-        const data = JSON.parse(savedGameData);
-        if (data.gameAddress === gameAddress) {
-          setOwnerChoice(data.ownerChoice ? BigInt(data.ownerChoice) : null);
-          setOwnerSalt(data.ownerSalt);
-        }
-      }
-
       // Get player choices
       const [ownerChoice, playerChoice] = await Promise.all([
         game.ownerChoice(),
@@ -387,36 +712,9 @@ function FactoryApp() {
         const result = await game.result();
         setGameResult(Number(result));
       }
-      
-      // Set status based on game state
-      if (gameState === 0) { // Deployed
-        if (isOwner) {
-          setStatus(`Game selected: ${gameAddress} - Ready to make your move`);
-        } else {
-          setStatus(`Game selected: ${gameAddress} - Game is deployed, waiting for owner to make their move`);
-        }
-      } else if (gameState === 1) { // Committed
-        if (isOwner) {
-          setStatus(`Game selected: ${gameAddress} - Waiting for player to join`);
-        } else {
-          setStatus(`Game selected: ${gameAddress} - Ready to join the game`);
-        }
-      } else if (gameState === 2) { // WaitingForReveal
-        setStatus(`Game selected: ${gameAddress} - Waiting for owner to reveal their choice`);
-      } else if (gameState === 3) { // Completed
-        let resultText;
-        if (gameResult === 1) {
-          resultText = "Owner (Player 1) won";
-        } else if (gameResult === 2) {
-          resultText = "Player (Player 2) won";
-        } else if (gameResult === 3) {
-          resultText = "Tie - Both players get their bets back";
-        }
-        setStatus(`Game completed - ${resultText}`);
-      }
     } catch (error) {
       console.error("Error selecting game:", error);
-      setStatus(`Error selecting game: ${error.message}`);
+      setStatus('Error selecting game: ' + error.message);
     }
   };
 
@@ -443,7 +741,6 @@ function FactoryApp() {
         value: ethers.parseEther(betAmount)
       });
       await tx.wait();
-      setStatus('Game created successfully!');
       
       // Refresh game info
       await selectGame(selectedGame);
@@ -470,7 +767,6 @@ function FactoryApp() {
         return;
       }
       
-      setStatus('Joining game...');
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const game = new ethers.Contract(selectedGame, RockPaperScissors.abi, signer);
@@ -482,9 +778,7 @@ function FactoryApp() {
         value: contractBetAmount
       });
       
-      setStatus('Transaction submitted. Waiting for confirmation...');
       await tx.wait();
-      setStatus('Successfully joined the game!');
       
       // Refresh game info
       await selectGame(selectedGame);
@@ -509,7 +803,6 @@ function FactoryApp() {
         return;
       }
 
-      setStatus('Revealing your choice...');
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const game = new ethers.Contract(selectedGame, RockPaperScissors.abi, signer);
@@ -519,9 +812,7 @@ function FactoryApp() {
       const paddedSalt = ethers.zeroPadValue(saltBytes, 32);
 
       const tx = await game.revealChoice(revealChoiceValue, paddedSalt);
-      setStatus('Transaction submitted. Waiting for confirmation...');
       await tx.wait();
-      setStatus('Choice revealed successfully!');
       
       // Clear reveal inputs
       setRevealChoiceValue(null);
@@ -540,126 +831,10 @@ function FactoryApp() {
 
   const refreshGames = async () => {
     if (factoryContract && account) {
-      setStatus('Refreshing games...');
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       await loadGames(factoryContract, signer);
-      setStatus('Games refreshed');
     }
-  };
-
-  // Helper function to display the winner information
-  const renderGameResult = () => {
-    if (gameResult === undefined || gameResult === null) {
-      return (
-        <div className="alert alert-info">
-          Game result not available
-        </div>
-      );
-    }
-    
-    let resultText;
-    let winnerAddress;
-    let winnerLabel;
-    let resultColor;
-    
-    const getChoiceText = (choice) => {
-      switch (Number(choice)) {
-        case 1: return "✊ Rock";
-        case 2: return "✋ Paper";
-        case 3: return "✌️ Scissors";
-        default: return "Unknown";
-      }
-    };
-    
-    switch (Number(gameResult)) {
-      case 0:
-        resultText = "Game not completed";
-        winnerAddress = null;
-        winnerLabel = "None";
-        resultColor = "info";
-        break;
-      case 1:
-        resultText = "Owner (Player 1) won";
-        winnerAddress = gameOwner;
-        winnerLabel = "Player 1";
-        resultColor = "success";
-        break;
-      case 2:
-        resultText = "Player (Player 2) won";
-        winnerAddress = gamePlayer;
-        winnerLabel = "Player 2";
-        resultColor = "success";
-        break;
-      case 3:
-        resultText = "Tie - Both players get their bets back";
-        winnerAddress = null;
-        winnerLabel = "None";
-        resultColor = "warning";
-        break;
-      default:
-        resultText = `Unknown result (${gameResult})`;
-        winnerAddress = null;
-        winnerLabel = "Unknown";
-        resultColor = "danger";
-    }
-    
-    const isCurrentUserWinner = winnerAddress && winnerAddress.toLowerCase() === account.toLowerCase();
-    
-    return (
-      <div>
-        <div className={`alert alert-${resultColor}`}>
-          <h3 className="h5 mb-0">Game Result: {resultText}</h3>
-        </div>
-        
-        <div className="mt-4">
-          <h4 className="h5 mb-3">Player Moves:</h4>
-          <div className="row g-3">
-            <div className="col-6">
-              <div className="card bg-light">
-                <div className="card-body">
-                  <p className="small text-muted mb-1">Player 1 (Owner)</p>
-                  <p className="h6 mb-0">{getChoiceText(gameContract?.ownerChoice)}</p>
-                </div>
-              </div>
-            </div>
-            <div className="col-6">
-              <div className="card bg-light">
-                <div className="card-body">
-                  <p className="small text-muted mb-1">Player 2</p>
-                  <p className="h6 mb-0">{getChoiceText(gameContract?.playerChoice)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {winnerAddress && (
-          <div className="mt-4">
-            <div className={`card ${isCurrentUserWinner ? 'bg-success bg-opacity-10' : 'bg-light'}`}>
-              <div className="card-body">
-                <h4 className="h5 mb-2">Winner: {winnerLabel}</h4>
-                <p className="font-monospace small mb-0">
-                  {winnerAddress.substring(0, 6)}...{winnerAddress.substring(38)}
-                </p>
-                {isCurrentUserWinner && (
-                  <div className="mt-2 d-flex align-items-center text-success">
-                    <span className="fs-4 me-2">🏆</span>
-                    <p className="fw-bold mb-0">YOU WON! The prize has been sent to your wallet!</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {gameResult === 3 && (
-          <div className="alert alert-info mt-4">
-            Each player received their bet back.
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -669,9 +844,6 @@ function FactoryApp() {
           <h1 className="display-4 fw-bold text-dark">
             Rock Paper Scissors Factory
           </h1>
-          <div className={`mt-3 p-3 rounded ${status.includes('Error') ? 'bg-danger bg-opacity-10 text-danger' : 'bg-primary bg-opacity-10 text-primary'}`}>
-            {status}
-          </div>
         </div>
 
         <div className="mb-4">
@@ -688,7 +860,7 @@ function FactoryApp() {
                 </button>
               </div>
 
-              <h3 className="h4 mb-3">Available Game Contracts</h3>
+              <h3 className="h4 mb-3">Ongoing Games</h3>
               {availableGames.length === 0 ? (
                 <div className="alert alert-info">
                   No available game contracts found
@@ -700,40 +872,16 @@ function FactoryApp() {
                       <div>
                         <p className="font-monospace small mb-1">{game.address}</p>
                         <div className="d-flex align-items-center gap-2">
-                          <span className={`badge ${game.isOwner ? 'bg-primary' : game.isPlayer ? 'bg-purple' : 'bg-secondary'}`}>
-                            {game.isOwner 
-                              ? (game.hasPlayed ? 'Waiting for Player' : 'Your Game')
-                              : game.isPlayer
-                                ? 'Your Joined Game'
-                                : 'Joinable Game'}
-                          </span>
                           <span className="text-muted small">
                             Bet: {ethers.formatEther(game.betAmount)} ETH
                           </span>
                         </div>
                       </div>
-                      {game.isOwner && game.hasPlayed ? (
-                        <button
-                          onClick={() => selectGame(game.address)}
-                          className="btn btn-outline-secondary"
-                        >
-                          View
-                        </button>
-                      ) : game.isPlayer ? (
-                        <button
-                          onClick={() => selectGame(game.address)}
-                          className="btn btn-purple"
-                        >
-                          View Game
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => selectGame(game.address)}
-                          className={`btn ${game.isOwner ? 'btn-primary' : 'btn-purple'}`}
-                        >
-                          {game.isOwner ? 'Make Move' : 'Join Game'}
-                        </button>
-                      )}
+                      <GameActionButton 
+                        game={game}
+                        account={account}
+                        onSelect={selectGame}
+                      />
                     </div>
                   ))}
                 </div>
@@ -771,174 +919,77 @@ function FactoryApp() {
           {selectedGame && (
             <div className="card shadow-sm mt-4">
               <div className="card-body">
-                <h2 className="h3 mb-3">Selected Game</h2>
-                <p className="font-monospace small mb-4">{selectedGame}</p>
-
-                <div className="card bg-light mb-4">
-                  <div className="card-body">
-                    <h3 className="h4 mb-3">Players</h3>
-                    <div className="mb-3">
-                      {gameOwner && (
-                        <div className="d-flex align-items-center mb-2">
-                          <span className="text-muted me-2">👤</span>
-                          <div>
-                            <p className="small mb-1">
-                              <span className="fw-medium">Player 1 (Owner):</span>{' '}
-                              {gameOwner.substring(0, 6)}...{gameOwner.substring(38)}
-                            </p>
-                            {gameOwner.toLowerCase() === account.toLowerCase() && (
-                              <span className="badge bg-primary">You</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      {gamePlayer ? (
-                        <div className="d-flex align-items-center">
-                          <span className="text-muted me-2">👤</span>
-                          <div>
-                            <p className="small mb-1">
-                              <span className="fw-medium">Player 2:</span>{' '}
-                              {gamePlayer.substring(0, 6)}...{gamePlayer.substring(38)}
-                            </p>
-                            {gamePlayer.toLowerCase() === account.toLowerCase() && (
-                              <span className="badge bg-purple">You</span>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        gameState === 1 && (
-                          <p className="small text-muted mb-0">
-                            <span className="fw-medium">Player 2:</span> Waiting for someone to join...
-                          </p>
-                        )
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card bg-light">
-                  <div className="card-body">
-                    <h3 className="h4 mb-3">Game Status</h3>
-                    {gameState === 2 && gameOwner.toLowerCase() === account.toLowerCase() && (
-                      <div>
-                        <h4 className="h5 mb-3">Reveal Your Choice</h4>
-                        <div className="mb-3">
-                          <label htmlFor="revealChoice" className="form-label">Your Choice</label>
-                          <select
-                            id="revealChoice"
-                            value={revealChoiceValue || ''}
-                            onChange={(e) => setRevealChoiceValue(Number(e.target.value))}
-                            className="form-select mb-3"
-                          >
-                            <option value="">Select your choice</option>
-                            <option value="1">✊ Rock</option>
-                            <option value="2">✋ Paper</option>
-                            <option value="3">✌️ Scissors</option>
-                          </select>
-                          <label htmlFor="revealSalt" className="form-label">Your Salt</label>
-                          <input
-                            id="revealSalt"
-                            type="text"
-                            value={revealSalt}
-                            onChange={(e) => setRevealSalt(e.target.value)}
-                            placeholder="Enter the same salt you used before"
-                            className="form-control mb-3"
-                          />
-                          <button
-                            onClick={revealChoice}
-                            className="btn btn-primary"
-                          >
-                            Reveal Your Choice
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {gameState === 0 && gameOwner.toLowerCase() === account.toLowerCase() && (
-                      <div>
-                        <h4 className="h5 mb-3">Make Your Move</h4>
-                        <p className="text-muted mb-3">Set your bet amount, choose Rock, Paper, or Scissors, and enter a salt to start the game.</p>
-                        <div className="mb-3">
-                          <label htmlFor="betAmount" className="form-label">Bet Amount (ETH)</label>
-                          <input
-                            id="betAmount"
-                            type="text"
-                            value={betAmount}
-                            onChange={(e) => setBetAmount(e.target.value)}
-                            placeholder="Enter bet amount in ETH"
-                            className="form-control mb-3"
-                          />
-                          <label htmlFor="ownerSalt" className="form-label">Salt (remember this for reveal)</label>
-                          <input
-                            id="ownerSalt"
-                            type="text"
-                            value={ownerSalt}
-                            onChange={(e) => setOwnerSalt(e.target.value)}
-                            placeholder="Enter a salt (any text)"
-                            className="form-control mb-3"
-                          />
-                          <div className="d-grid gap-2 d-md-flex">
-                            <button
-                              onClick={() => makeFirstMove(1)}
-                              className="btn btn-primary flex-grow-1"
-                            >
-                              ✊ Rock
-                            </button>
-                            <button
-                              onClick={() => makeFirstMove(2)}
-                              className="btn btn-primary flex-grow-1"
-                            >
-                              ✋ Paper
-                            </button>
-                            <button
-                              onClick={() => makeFirstMove(3)}
-                              className="btn btn-primary flex-grow-1"
-                            >
-                              ✌️ Scissors
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {gameState === 1 && gameOwner.toLowerCase() !== account.toLowerCase() && (
-                      <div>
-                        <h4 className="h5 mb-3">Join Game</h4>
-                        <p className="small mb-3">
-                          Bet Amount: <span className="fw-medium">{ethers.formatEther(betAmount)} ETH</span>
-                        </p>
-                        <div className="d-grid gap-2 d-md-flex">
-                          <button
-                            onClick={() => joinGame(1)}
-                            className="btn btn-purple flex-grow-1"
-                          >
-                            ✊ Rock
-                          </button>
-                          <button
-                            onClick={() => joinGame(2)}
-                            className="btn btn-purple flex-grow-1"
-                          >
-                            ✋ Paper
-                          </button>
-                          <button
-                            onClick={() => joinGame(3)}
-                            className="btn btn-purple flex-grow-1"
-                          >
-                            ✌️ Scissors
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {gameState === 3 && (
-                      <div className="mt-4">
-                        {renderGameResult()}
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <GameStatus
+                  gameState={gameState}
+                  gameAddress={selectedGame}
+                  isOwner={gameOwner?.toLowerCase() === account.toLowerCase()}
+                  betAmount={betAmount}
+                  ownerChoice={ownerChoice}
+                  playerChoice={playerChoice}
+                  gameOwner={gameOwner}
+                  gamePlayer={gamePlayer}
+                  gameResult={gameResult}
+                  account={account}
+                  onRevealChoice={revealChoice}
+                  onMakeMove={makeFirstMove}
+                  onJoinGame={joinGame}
+                  revealChoiceValue={revealChoiceValue}
+                  setRevealChoiceValue={setRevealChoiceValue}
+                  revealSalt={revealSalt}
+                  setRevealSalt={setRevealSalt}
+                  betAmountInput={betAmount}
+                  setBetAmountInput={setBetAmount}
+                  ownerSalt={ownerSalt}
+                  setOwnerSalt={setOwnerSalt}
+                />
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Status display at bottom - only show errors and warnings */}
+      {status && (
+        <div 
+          className={`position-fixed bottom-0 start-0 end-0 p-3 ${
+            status.includes('Error') ? 'bg-danger bg-opacity-10 text-danger' : 'bg-warning bg-opacity-10 text-warning'
+          } d-flex flex-column shadow-lg`}
+          style={{
+            transition: 'transform 0.3s ease-in-out',
+            transform: showStatus ? 'translateY(0)' : 'translateY(100%)',
+            zIndex: 1000
+          }}
+          onMouseEnter={() => {
+            setIsHovered(true);
+            setProgress(100); // Reset progress when hovered
+          }}
+        >
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <span>{status}</span>
+            <button 
+              type="button" 
+              className="btn-close" 
+              onClick={() => setShowStatus(false)}
+              aria-label="Close"
+            ></button>
+          </div>
+          {!isHovered && (
+            <div className="progress" style={{ height: '2px' }}>
+              <div 
+                className={`progress-bar ${status.includes('Error') ? 'bg-danger' : 'bg-warning'}`}
+                role="progressbar"
+                style={{ 
+                  width: `${progress}%`, 
+                  transition: 'width 50ms linear'
+                }}
+                aria-valuenow={progress}
+                aria-valuemin="0"
+                aria-valuemax="100"
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
