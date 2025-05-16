@@ -1,10 +1,33 @@
 # Rock Paper Scissors DApp
 
-A decentralized application (DApp) that allows users to play Rock Paper Scissors on the blockchain. This project consists of a React frontend and a Solidity smart contract using a factory pattern.
+A decentralized application (DApp) that allows users to play Rock Paper Scissors on the blockchain.
+This project consists of a React frontend and a Solidity smart contract using a factory pattern.
+
+## How It Works
+
+This DApp implements a secure commit-reveal scheme, which is crucial for fair blockchain games:
+
+1. **Commit Phase**: When a player makes their move, they don't reveal their choice directly. Instead, they:
+   - Choose their move (Rock, Paper, or Scissors)
+   - Generate a random salt (secret value)
+   - Create a commitment hash using their choice and salt
+   - Submit only the hash to the blockchain
+
+2. **Reveal Phase**: After both players have committed their moves:
+   - Players reveal their original choice and salt
+   - The smart contract verifies the commitment by hashing the revealed values
+   - If the hash matches the original commitment, the move is valid
+   - The winner is determined and funds are distributed accordingly
+
+This mechanism ensures:
+- **Fairness**: Players cannot change their moves after seeing their opponent's choice
+- **Transparency**: All moves are verifiable on the blockchain
+- **Trustlessness**: No need for a trusted third party to mediate the game
+- **Security**: The salt prevents other players from guessing moves before they're revealed
 
 ## Prerequisites
 
-- Bun (JavaScript runtime & package manager)
+- Bun
 - MetaMask or any Web3 wallet
 
 ## Quick Start
@@ -28,7 +51,10 @@ A decentralized application (DApp) that allows users to play Rock Paper Scissors
    ```bash
    bun run deploy
    ```
-   Save the factory contract address that gets displayed.
+   This will:
+   - Deploy the factory contract
+   - Generate and save the contract ABIs
+   - Automatically update the factory address in the frontend code
 
 4. Configure MetaMask:
    - Open MetaMask
@@ -48,34 +74,11 @@ A decentralized application (DApp) that allows users to play Rock Paper Scissors
    - Paste the private key
    - Click "Import"
 
-6. Update the factory contract address in the app:
-   - Open `src/FactoryApp.js`
-   - Update the `factoryAddress` constant with the address from step 3
-
-7. Start the web app:
+6. Start the web app:
    ```bash
    bun run start
    ```
    The application will be available at `http://localhost:3000`
-
-## Architecture
-
-The application uses a factory pattern:
-- `RockPaperScissorsFactory`: Creates individual game contracts
-- Each player can create their own game contract and become its owner
-- Players can join any existing game by providing the game ID
-
-This approach solves ownership permissions and scales better than a single-contract approach.
-
-## Features
-
-### Account Change Detection
-The application automatically detects when a user changes their MetaMask account or disconnects their wallet:
-- Updates the UI to reflect the current connected account
-- Reinitializes web3 connections when accounts change
-- Handles wallet disconnection gracefully
-
-For more details on how this works, see [Account Change Detection Documentation](docs/AccountChangeDetection.md).
 
 ## Troubleshooting
 
@@ -85,28 +88,6 @@ For more details on how this works, see [Account Change Detection Documentation]
 - Ensure the Hardhat node is running at http://127.0.0.1:8545
 
 ### Contract Interaction Failures
-- Verify the factory contract address in the FactoryApp.js file
 - Check if you have enough test ETH in your account
 - Ensure the Hardhat node is running
-
-## Project Structure
-
-```
-rock-paper-scissors/
-├── contracts/              # Smart contract source files
-│   ├── RockPaperScissors.sol        # Game logic contract
-│   └── RockPaperScissorsFactory.sol # Factory contract
-├── scripts/                # Deployment scripts
-│   └── deployFactory.js    # Factory deployment script
-├── src/                    # React application source
-│   ├── App.js              # Main application component
-│   ├── FactoryApp.js       # Factory pattern implementation
-│   └── contracts/          # Contract ABIs
-└── package.json            # Project dependencies and scripts
-```
-
-## Smart Contract Interaction
-
-The application uses the following contract functions:
-
-- `
+- Try redeploying the contracts if you're having issues
