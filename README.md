@@ -1,7 +1,6 @@
 # Rock Paper Scissors DApp
 
-A decentralized application (DApp) that allows users to play Rock Paper Scissors on the blockchain.
-This project consists of a React frontend and a Solidity smart contract using a factory pattern.
+![Game Flow Diagram](/public/images/game-flow.png)
 
 ## How It Works
 
